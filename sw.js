@@ -1,6 +1,6 @@
 // 離線快取：打開過一次之後，沒有網路也能記帳
 // 只快取 App 自己的檔案；Google 登入與雲端硬碟同步一律直接連網，不經過快取。
-const CACHE = "beauty-ledger-v10";
+const CACHE = "beauty-ledger-v11";
 const FILES = ["./", "index.html", "manifest.webmanifest", "icon-180.png", "icon-192.png", "icon-512.png", "privacy.html"];
 const FONT_HOSTS = ["fonts.googleapis.com", "fonts.gstatic.com"];
 

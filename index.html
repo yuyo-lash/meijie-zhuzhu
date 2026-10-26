@@ -185,6 +185,12 @@ footer{text-align:center;font-size:12px;color:var(--muted);letter-spacing:.04em}
 .select select{font:inherit;font-size:16px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:11px 40px 11px 12px;width:100%;-webkit-appearance:none;appearance:none;min-height:46px}
 .select::after{content:"";position:absolute;right:16px;top:50%;width:8px;height:8px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:translateY(-70%) rotate(45deg);pointer-events:none}
 select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.rolef{display:flex;flex-direction:column;gap:8px;font-size:14px;font-weight:500}
+.rolef small{font-weight:400;color:var(--muted);font-size:12px;margin-left:4px}
+.rolechips{display:flex;flex-wrap:wrap;gap:7px}
+.rolechips button{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;padding:7px 13px;font:inherit;font-size:14px;cursor:pointer}
+.rolechips button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--on-color)}
+.rolechips button[aria-pressed="true"]::before{content:"✓ ";font-weight:700}
 .wcard .btn.primary{padding:13px}
 .hello{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:14px;color:var(--muted);margin-top:4px}
 .hello b{color:var(--ink);font-weight:500}
@@ -227,21 +233,10 @@ select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
     <label class="f">請問該怎麼稱呼你？
       <input id="pName" maxlength="20" placeholder="例：小美、Amy 老師" autocomplete="nickname">
     </label>
-    <label class="f">你的美業項目
-      <span class="select"><select id="pRole">
-        <option value="" disabled selected>請選擇</option>
-        <option>美髮</option>
-        <option>皮膚管理</option>
-        <option>美睫師</option>
-        <option>紋繡師</option>
-        <option>精油SPA按摩師</option>
-        <option>熱蠟除毛師</option>
-        <option>采耳師</option>
-        <option>新娘秘書</option>
-        <option>彩妝造型</option>
-        <option>其他</option>
-      </select></span>
-    </label>
+    <div class="f rolef">
+      <span>你的美業項目 <small>可以複選，最多 3 項</small></span>
+      <div class="rolechips" id="pRoles" role="group" aria-label="美業項目"></div>
+    </div>
     <label class="f" id="pOtherWrap" hidden>你的項目是？
       <input id="pOther" maxlength="20" placeholder="例：美甲師" autocomplete="off">
     </label>
@@ -432,6 +427,8 @@ const PRO={
   "采耳師":{income:["采耳服務","加購按摩","學生學費","其他收入"],supply:["耳勺/工具","內視鏡耗材","棉棒/手套","清潔消毒","其他耗材"],ex:["例：王先生 采耳＋肩頸","例：棉棒、耳勺組"]},
   "新娘秘書":{income:["新娘秘書","訂婚/迎娶","伴娘/親友妝","車馬費","學生學費","其他收入"],supply:["彩妝品","飾品/髮品","假睫毛","刷具/工具","清潔消毒","其他耗材"],ex:["例：王小姐 迎娶＋午宴","例：假睫毛、髮飾"]},
   "彩妝造型":{income:["彩妝","髮型造型","商業拍攝","學生學費","其他收入"],supply:["彩妝品","假睫毛","髮品/造型品","刷具/工具","清潔消毒","其他耗材"],ex:["例：王小姐 宴會妝髮","例：粉底、定型液"]},
+  "美甲師":{income:["凝膠指甲","手部保養","足部美甲","卸甲/補甲","學生學費","其他收入"],supply:["甲油膠","甲片/延甲材料","飾品/貼紙","銼刀/工具","清潔消毒","其他耗材"],ex:["例：王小姐 單色凝膠＋卸甲","例：甲油膠 3 瓶、飾品"]},
+  "粉嫩":{income:["私密粉嫩","乳暈粉嫩","唇部粉嫩","補色/複診","學生學費","其他收入"],supply:["粉嫩色乳","針片","麻藥/修護","手套/口罩","清潔消毒","其他耗材"],ex:["例：王小姐 乳暈粉嫩 第 1 次","例：色乳 2 瓶、針片"]},
   "其他":{income:["服務收入","商品販售","學生學費","其他收入"],supply:["材料","工具","包材/耗品","清潔消毒","其他耗材"],ex:["例：王小姐 服務項目","例：材料、店家"]}
 };
 const LIVING=["餐飲","交通","房租水電","手機網路","日用品","娛樂/購物","其他生活"];
@@ -439,10 +436,15 @@ const LS_PROFILE="lash-ledger-profile";
 let profile=null;
 try{profile=JSON.parse(localStorage.getItem(LS_PROFILE)||"null");}catch(e){}
 let CATS={}, NOTES={};
+const ROLE_ORDER=["美髮","皮膚管理","美睫師","美甲師","紋繡師","粉嫩","精油SPA按摩師","熱蠟除毛師","采耳師","新娘秘書","彩妝造型","其他"];
+const TAIL_IN=["學生學費","其他收入"], TAIL_SUP=["清潔消毒","其他耗材"];
+function rolesOf(p){if(!p)return [];if(Array.isArray(p.roles)&&p.roles.length)return p.roles.filter(r=>PRO[r]);return p.role&&PRO[p.role]?[p.role]:[];}
+function mergeCats(list,tail){const out=[];list.forEach(c=>{if(!tail.includes(c)&&!out.includes(c))out.push(c);});return out.concat(tail.filter(t=>list.includes(t)));}
 function applyProfile(){
-  const p=PRO[profile&&profile.role]||PRO["美睫師"];
-  CATS={income:p.income,supply:p.supply,living:LIVING};
-  NOTES={income:["備註（客人、項目…可不填）",p.ex[0]],supply:["備註（品項、店家…可不填）",p.ex[1]],living:["備註（買了什麼、在哪裡…可不填）","例：午餐便當、捷運、10 月房租"]};
+  let rs=rolesOf(profile);if(!rs.length)rs=["美睫師"];
+  const ps=rs.map(r=>PRO[r]);
+  CATS={income:mergeCats(ps.flatMap(p=>p.income),TAIL_IN),supply:mergeCats(ps.flatMap(p=>p.supply),TAIL_SUP),living:LIVING};
+  NOTES={income:["備註（客人、項目…可不填）",ps[0].ex[0]],supply:["備註（品項、店家…可不填）",ps[0].ex[1]],living:["備註（買了什麼、在哪裡…可不填）","例：午餐便當、捷運、10 月房租"]};
 }
 applyProfile();
 const TYPE_NAME={income:"收入",supply:"耗材",living:"生活"};
@@ -707,7 +709,21 @@ function renderHome(){
 }
 
 /* ---------- welcome / profile ---------- */
-function roleLabel(){return profile?(profile.role==="其他"&&profile.other?profile.other:profile.role):"";}
+function roleLabel(){if(!profile)return "";return rolesOf(profile).map(r=>r==="其他"&&profile.other?profile.other:r).join("・");}
+let pickRoles=[];
+function renderRoleChips(){
+  const box=$("pRoles");box.innerHTML="";
+  ROLE_ORDER.forEach(r=>{
+    const b=document.createElement("button");b.type="button";b.textContent=r;b.setAttribute("aria-pressed",String(pickRoles.includes(r)));
+    b.onclick=()=>{
+      if(pickRoles.includes(r))pickRoles=pickRoles.filter(x=>x!==r);
+      else{if(pickRoles.length>=3){$("pMsg").className="msg err";$("pMsg").textContent="最多選 3 項，先取消一個再選。";return;}pickRoles.push(r);}
+      $("pMsg").textContent="";renderRoleChips();
+    };
+    box.appendChild(b);
+  });
+  $("pOtherWrap").hidden=!pickRoles.includes("其他");
+}
 function renderHello(){
   const h=$("hello");h.innerHTML="";if(!profile)return;
   const n=document.createElement("b");n.textContent="嗨，"+profile.name;
@@ -720,22 +736,21 @@ function openProfile(){
   $("wTitle").textContent=editing?"編輯個人資料":"歡迎使用美業豬豬";
   $("wSub").textContent=editing?"更改美業項目後，記帳分類會跟著換，已經記過的帳不會變。":"先認識一下你，記帳分類會依照你的美業項目調整。";
   $("pName").value=editing?profile.name:"";
-  $("pRole").value=editing?profile.role:"";
+  pickRoles=editing?rolesOf(profile).slice():[];
   $("pOther").value=editing?(profile.other||""):"";
-  $("pOtherWrap").hidden=$("pRole").value!=="其他";
+  renderRoleChips();
   $("pSave").textContent=editing?"儲存":"開始記帳";
   $("pCancel").hidden=!editing;$("pMsg").textContent="";
   $("pRestore").hidden=editing||!GOOGLE_CLIENT_ID;
   showView("welcome");
 }
-$("pRole").onchange=()=>{$("pOtherWrap").hidden=$("pRole").value!=="其他";};
 $("pCancel").onclick=()=>showView("home");
 $("pSave").onclick=()=>{
-  const name=$("pName").value.trim(), role=$("pRole").value, other=$("pOther").value.trim();
+  const name=$("pName").value.trim(), roles=ROLE_ORDER.filter(r=>pickRoles.includes(r)), other=$("pOther").value.trim();
   const m=$("pMsg");m.className="msg err";
   if(!name){m.textContent="請輸入你的稱呼。";$("pName").focus();return;}
-  if(!role){m.textContent="請選擇你的美業項目。";$("pRole").focus();return;}
-  profile={name,role,other:role==="其他"?other:"",ts:Date.now()};
+  if(!roles.length){m.textContent="請至少選一個美業項目。";return;}
+  profile={name,roles,role:roles[0],other:roles.includes("其他")?other:"",ts:Date.now()};
   lsSet(LS_PROFILE,JSON.stringify(profile));lsSet("lash-ledger-dirty","1");if(window.__gsSoon)window.__gsSoon();
   applyProfile();setType(tab==="life"?"living":"income");
   renderHello();showView("home");checkRemind();
