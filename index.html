@@ -207,6 +207,11 @@ select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .gsync .t span.ok{color:var(--income)} .gsync .t span.warn{color:var(--danger)}
 .gsync p{margin:0;font-size:12.5px;color:var(--muted)}
 .gsync .actions .btn{flex:1}
+.daily{display:flex;align-items:center;gap:12px;background:var(--accent-soft);border-radius:14px;padding:12px 14px;min-height:64px}
+.daily img{width:38px;height:38px;border-radius:10px;flex:none}
+.daily .dq{display:flex;flex-direction:column;gap:1px;min-width:0}
+.daily .dd{font-size:11.5px;letter-spacing:.12em;color:var(--accent)}
+.daily .dt{font-size:14.5px;line-height:1.55;color:var(--ink);overflow-wrap:anywhere}
 .syncbar{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--supply-soft);color:var(--ink);border:1px solid var(--line);border-radius:14px;padding:12px 14px;font:inherit;font-size:13.5px;cursor:pointer}
 .syncbar b{color:var(--supply)}
 .syncbar .go{margin-left:auto;font-weight:700;color:var(--accent);white-space:nowrap}
@@ -255,6 +260,11 @@ select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
       <div class="hello" id="hello"></div>
     </div>
   </header>
+
+  <div class="daily" aria-label="今日鼓勵語">
+    <img src="icon-192.png" alt="">
+    <div class="dq"><span class="dd num" id="dDate">今日一句</span><span class="dt" id="dText">今天也辛苦了，記一筆帳，給自己多一份安心。</span></div>
+  </div>
 
   <button class="syncbar" id="syncBar" hidden><span id="syncBarText"></span><span class="go">同步 ›</span></button>
 
@@ -725,6 +735,7 @@ function renderRoleChips(){
   $("pOtherWrap").hidden=!pickRoles.includes("其他");
 }
 function renderHello(){
+  if(typeof renderQuote==="function")renderQuote();
   const h=$("hello");h.innerHTML="";if(!profile)return;
   const n=document.createElement("b");n.textContent="嗨，"+profile.name;
   const r=document.createElement("span");r.className="role";r.textContent=roleLabel();
@@ -928,6 +939,26 @@ $("gOff").onclick=()=>{
 };
 window.addEventListener("online",()=>{if(gs.on&&token())syncNow();});
 
+/* ---------- daily encouragement (quotes.json on GitHub, updates for everyone) ---------- */
+const LS_QUOTES="lash-ledger-quotes";
+const FALLBACK_QUOTES=["{name}，今天也辛苦了。每一位客人的笑容，都是你手藝的證明。","收入有高有低很正常，重要的是你一直在進步。","記帳不是為了省錢，是為了讓你更有底氣做喜歡的事。","你讓別人變美，也別忘了好好照顧自己。","今天記一筆，月底就多一份安心。","相信自己的價值，好手藝值得好價格。","存下的每一塊錢，都是給未來自己的禮物。"];
+let quoteData=null;try{quoteData=JSON.parse(lsGet(LS_QUOTES)||"null");}catch(e){}
+function renderQuote(){
+  const t=today(), d=new Date();
+  const list=(quoteData&&Array.isArray(quoteData.quotes)&&quoteData.quotes.length)?quoteData.quotes:FALLBACK_QUOTES;
+  const day=Math.floor(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())/864e5);
+  let q=(quoteData&&quoteData.special&&quoteData.special[t])||list[day%list.length];
+  const name=profile&&profile.name?profile.name:"";
+  q=String(q).replace(/\{name\}，?/g,name?name+"，":"").trim();
+  $("dDate").textContent=(d.getMonth()+1)+"/"+d.getDate()+"（"+"日一二三四五六"[d.getDay()]+"）今日一句";
+  $("dText").textContent=q;
+}
+function loadQuotes(){
+  fetch("quotes.json?d="+today(),{cache:"no-store"}).then(r=>r.ok?r.json():null).then(j=>{
+    if(j&&Array.isArray(j.quotes)&&j.quotes.length){quoteData=j;lsSet(LS_QUOTES,JSON.stringify(j));renderQuote();}
+  }).catch(()=>{});
+}
+
 /* ---------- monthly backup reminder ---------- */
 function checkRemind(){
   if(!allEntries().length)return;
@@ -945,6 +976,7 @@ $("fDate").value=today();
 setType(type);
 setTab(tab,true);
 renderHello();
+loadQuotes();
 const justBack=GOOGLE_CLIENT_ID&&readRedirect();
 if(profile){showView("home");checkRemind();}else{openProfile();}
 renderGs();
