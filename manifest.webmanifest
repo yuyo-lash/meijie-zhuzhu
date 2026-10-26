@@ -1,7 +1,7 @@
 {
-  "name": "美睫豬豬",
-  "short_name": "美睫豬豬",
-  "description": "美睫收入、工作耗材與生活開銷的每日記帳",
+  "name": "美業豬豬",
+  "short_name": "美業豬豬",
+  "description": "美業工作收入、耗材與生活開銷的每日記帳",
   "lang": "zh-Hant-TW",
   "start_url": "./",
   "scope": "./",
