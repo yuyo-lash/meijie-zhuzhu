@@ -201,6 +201,9 @@ select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .gsync .t span.ok{color:var(--income)} .gsync .t span.warn{color:var(--danger)}
 .gsync p{margin:0;font-size:12.5px;color:var(--muted)}
 .gsync .actions .btn{flex:1}
+.syncbar{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--supply-soft);color:var(--ink);border:1px solid var(--line);border-radius:14px;padding:12px 14px;font:inherit;font-size:13.5px;cursor:pointer}
+.syncbar b{color:var(--supply)}
+.syncbar .go{margin-left:auto;font-weight:700;color:var(--accent);white-space:nowrap}
 .restore{border:0;background:transparent;color:var(--accent);font:inherit;font-size:13.5px;text-decoration:underline;text-underline-offset:3px;cursor:pointer;padding:4px;align-self:center}
 .remind{position:fixed;inset:0;background:var(--shade);display:grid;place-items:center;padding:24px max(16px,env(safe-area-inset-left,0px));z-index:20}
 .remind .box{background:var(--surface);border-radius:20px;padding:24px 22px;max-width:360px;width:100%;display:flex;flex-direction:column;gap:12px;text-align:center;box-shadow:0 12px 40px rgba(40,32,27,.3)}
@@ -257,6 +260,8 @@ select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
       <div class="hello" id="hello"></div>
     </div>
   </header>
+
+  <button class="syncbar" id="syncBar" hidden><span id="syncBarText"></span><span class="go">同步 ›</span></button>
 
   <button class="hero-month" id="heroMonth" aria-label="打開本月帳本">
     <div class="top"><span class="title num" id="hTitle">—</span><span class="pill">本月帳本</span></div>
@@ -462,7 +467,7 @@ let tab=lsGet(LS_TAB)==="life"?"life":"work";
 let type=tab==="life"?"living":"income", cat=CATS[type][0], editing=null, delArmed=false;
 
 function save(){
-  if(lsSet(LS,JSON.stringify(months))){if(window.__gsSoon)window.__gsSoon();return true;}
+  if(lsSet(LS,JSON.stringify(months))){lsSet("lash-ledger-dirty","1");if(window.__gsSoon)window.__gsSoon();return true;}
   msg("存不進去，可能是手機空間不足或開了無痕模式。",true);return false;
 }
 if(navigator.storage&&navigator.storage.persist){navigator.storage.persist().catch(()=>{});}
@@ -731,7 +736,7 @@ $("pSave").onclick=()=>{
   if(!name){m.textContent="請輸入你的稱呼。";$("pName").focus();return;}
   if(!role){m.textContent="請選擇你的美業項目。";$("pRole").focus();return;}
   profile={name,role,other:role==="其他"?other:"",ts:Date.now()};
-  lsSet(LS_PROFILE,JSON.stringify(profile));if(window.__gsSoon)window.__gsSoon();
+  lsSet(LS_PROFILE,JSON.stringify(profile));lsSet("lash-ledger-dirty","1");if(window.__gsSoon)window.__gsSoon();
   applyProfile();setType(tab==="life"?"living":"income");
   renderHello();showView("home");checkRemind();
 };
@@ -845,7 +850,7 @@ function merge(remote){
   Object.entries(deleted).forEach(([id,t])=>{const e=map.get(id);if(e&&(e.ts||0)<=t)map.delete(id);});
   const next={};map.forEach(e=>{const k=monthKey(e.date);(next[k]=next[k]||[]).push(e);});
   months=next;lsSet(LS,JSON.stringify(months));lsSet(LS_DEL,JSON.stringify(deleted));
-  if(remote.profile&&(!profile||(remote.profile.ts||0)>(profile.ts||0))){profile=remote.profile;lsSet(LS_PROFILE,JSON.stringify(profile));applyProfile();}
+  if(remote.profile&&(!profile||(remote.profile.ts||0)>(profile.ts||0))){profile=remote.profile;lsSet(LS_PROFILE,JSON.stringify(profile));applyProfile();if(!editing)setType(tab==="life"?"living":"income");}
 }
 let syncing=false,again=false;
 async function syncNow(){
@@ -865,7 +870,7 @@ async function syncNow(){
       const mp="--"+bd+"\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n"+JSON.stringify({name:DRIVE_FILE,parents:["appDataFolder"]})+"\r\n--"+bd+"\r\nContent-Type: application/json\r\n\r\n"+body+"\r\n--"+bd+"--";
       await gapi("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",{method:"POST",headers:{"Content-Type":"multipart/related; boundary="+bd},body:mp});
     }
-    const d=new Date();gs.lastSync=today()+" "+pad(d.getHours())+":"+pad(d.getMinutes());saveGs();
+    const d=new Date();gs.lastSync=today()+" "+pad(d.getHours())+":"+pad(d.getMinutes());saveGs();lsSet("lash-ledger-dirty","");
     renderHello();render();
     if(profile&&view==="welcome")showView("home");
   }catch(e){
@@ -882,6 +887,9 @@ window.__gsSoon=()=>{if(!gs.on||!token())return;clearTimeout(soonT);soonT=setTim
 let gsMsg=null;
 function gsStatus(t,cls){gsMsg={t,cls:cls||""};const el=$("gStatus");el.textContent=t;el.className=cls||"";}
 function renderGs(){
+  const dirty=lsGet("lash-ledger-dirty")==="1";
+  $("syncBar").hidden=!(GOOGLE_CLIENT_ID&&gs.on&&dirty&&!token()&&!syncing);
+  $("syncBarText").innerHTML="<b>有紀錄還沒備份到 Google</b>，點一下重新登入就會同步";
   if(!GOOGLE_CLIENT_ID){$("gsync").hidden=true;return;}
   $("gsync").hidden=false;
   const on=!!gs.on;
@@ -893,6 +901,7 @@ function renderGs(){
   else gsStatus((gs.email?gs.email+" · ":"")+(gs.lastSync?"上次同步 "+gs.lastSync:"已連結"),"ok");
 }
 $("gConnect").onclick=connect;
+$("syncBar").onclick=()=>{gsMsg=null;if(token())syncNow();else connect();};
 $("pRestore").onclick=connect;
 $("gSyncNow").onclick=()=>{gsMsg=null;if(token())syncNow();else connect();};
 let offArmed=false;
